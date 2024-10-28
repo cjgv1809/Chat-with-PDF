@@ -9,11 +9,10 @@ import {
   RocketIcon,
   SaveIcon,
 } from "lucide-react";
-// import useUpload, { StatusText } from "@/hooks/useUpload";
 import { useRouter } from "next/navigation";
-import useUpload, { StatusText, Status } from "@/hooks/useUpload";
-// import useSubscription from "@/hooks/useSubscription";
-// import { useToast } from "./ui/use-toast";
+import useUpload, { StatusText } from "@/hooks/useUpload";
+import useSubscription from "@/hooks/useSubscription";
+import { useToast } from "@/hooks/use-toast";
 
 function FileUploader() {
   const { progress, status, fileId, handleUpload } = useUpload() as {
@@ -22,9 +21,9 @@ function FileUploader() {
     fileId: string | null;
     handleUpload: (file: File) => Promise<void>;
   };
-  // const { isOverFileLimit, filesLoading } = useSubscription();
+  const { isOverFileLimit, filesLoading } = useSubscription();
   const router = useRouter();
-  // const { toast } = useToast();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (fileId) {
@@ -34,23 +33,21 @@ function FileUploader() {
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
-      // Do something with the files
-
       const file = acceptedFiles[0];
       if (file) {
-        // if (!isOverFileLimit && !filesLoading) {
-        await handleUpload(file);
-        // } else {
-        // toast({
-        //   variant: "destructive",
-        //   title: "Free Plan File Limit Reached",
-        //   description:
-        //     "You have reached the maximum number of files allowed for your account. Please upgrade to add more documents.",
-        // });
+        if (!isOverFileLimit && !filesLoading) {
+          await handleUpload(file);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Free Plan File Limit Reached",
+            description:
+              "You have reached the maximum number of files allowed for your account. Please upgrade to add more documents.",
+          });
+        }
       }
     },
-    // [handleUpload, isOverFileLimit, filesLoading, toast]
-    [handleUpload]
+    [handleUpload, isOverFileLimit, filesLoading, toast]
   );
 
   const statusIcons: {
@@ -81,7 +78,6 @@ function FileUploader() {
 
   return (
     <div className="flex flex-col gap-4 items-center max-w-7xl mx-auto">
-      {/* Loading... tomorrow! */}
       {uploadInProgress && (
         <div className="flex flex-col justify-center items-center gap-5">
           <div
