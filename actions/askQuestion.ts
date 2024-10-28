@@ -6,6 +6,7 @@ import { generateLangchainCompletion } from "@/lib/langchain";
 import { auth } from "@clerk/nextjs/server";
 // import { generateLangchainCompletion } from "@/lib/langchain";
 
+// number of docs the user is allowed to have
 const PRO_LIMIT = 20;
 const FREE_LIMIT = 2;
 
