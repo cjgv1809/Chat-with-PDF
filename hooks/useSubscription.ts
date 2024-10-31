@@ -10,50 +10,75 @@ import { useCollection, useDocument } from "react-firebase-hooks/firestore";
 const PRO_LIMIT = 20;
 const FREE_LIMIT = 2;
 
+interface UserData {
+  hasActiveMembership?: boolean;
+  filesCount?: number;
+  userLimit?: number;
+}
+
 function useSubscription() {
-  const [hasActiveMembership, setHasActiveMembership] = useState(null);
-  const [isOverFileLimit, setIsOverFileLimit] = useState(false);
+  const [hasActiveMembership, setHasActiveMembership] =
+    useState<boolean>(false); // Initialize as false instead of null
+  const [isOverFileLimit, setIsOverFileLimit] = useState<boolean>(false);
   const { user } = useUser();
 
-  //   Listen to the User document
+  // Listen to the User document
   const [snapshot, loading, error] = useDocument(
-    user && doc(db, "users", user.id),
+    user ? doc(db, "users", user.id) : null,
     {
       snapshotListenOptions: { includeMetadataChanges: true },
     }
   );
 
-  //   Listen to the users files collection
-  const [filesSnapshot, filesLoading] = useCollection(
-    user && collection(db, "users", user?.id, "files")
+  // Listen to the users files collection
+  const [filesSnapshot, filesLoading, filesError] = useCollection(
+    user ? collection(db, "users", user.id, "files") : null
   );
 
   useEffect(() => {
-    if (!snapshot) return;
+    if (!snapshot?.exists()) return;
 
-    const data = snapshot.data();
+    try {
+      const data = snapshot.data() as UserData;
 
-    if (!data) return;
+      console.log("User data:", data);
 
-    setHasActiveMembership(data.hasActiveMembership);
+      // Set hasActiveMembership to false if it's undefined in the document
+      setHasActiveMembership(!!data?.hasActiveMembership);
+    } catch (err) {
+      console.error("Error processing user document:", err);
+      setHasActiveMembership(false);
+    }
   }, [snapshot]);
 
   useEffect(() => {
-    if (!filesSnapshot || hasActiveMembership === null) return;
+    if (!filesSnapshot) return;
 
-    const files = filesSnapshot.docs;
-    const usersLimit = hasActiveMembership ? PRO_LIMIT : FREE_LIMIT;
+    try {
+      const files = filesSnapshot.docs;
+      const usersLimit = hasActiveMembership ? PRO_LIMIT : FREE_LIMIT;
 
-    console.log(
-      "Checking if user is over file limit",
-      files.length,
-      usersLimit
-    );
+      console.log(
+        "Checking if user is over file limit:",
+        `Files: ${files.length}`,
+        `Limit: ${usersLimit}`
+      );
 
-    setIsOverFileLimit(files.length >= usersLimit);
+      setIsOverFileLimit(files.length >= usersLimit);
+    } catch (err) {
+      console.error("Error processing files:", err);
+      setIsOverFileLimit(false);
+    }
   }, [filesSnapshot, hasActiveMembership]);
 
-  return { hasActiveMembership, loading, error, isOverFileLimit, filesLoading };
+  return {
+    hasActiveMembership,
+    isOverFileLimit,
+    loading: loading || filesLoading,
+    error: error || filesError,
+    filesCount: filesSnapshot?.docs.length || 0,
+    userLimit: hasActiveMembership ? PRO_LIMIT : FREE_LIMIT,
+  };
 }
 
 export default useSubscription;

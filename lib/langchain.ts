@@ -1,7 +1,11 @@
-import { ChatOpenAI } from "@langchain/openai";
+import {
+  GoogleGenerativeAI,
+  GenerativeModel,
+  EmbedContentResponse,
+} from "@google/generative-ai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { OpenAIEmbeddings } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { createRetrievalChain } from "langchain/chains/retrieval";
@@ -9,16 +13,19 @@ import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retr
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import pineconeClient from "./pinecone";
 import { PineconeStore } from "@langchain/pinecone";
-// import { PineconeConflictError } from "@pinecone-database/pinecone/dist/errors";
 import { Index, RecordMetadata } from "@pinecone-database/pinecone";
 import { adminDb } from "../firebaseAdmin";
 import { auth } from "@clerk/nextjs/server";
 
-// Initialize the OpenAI model with API key and model name
-const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  modelName: "gpt-4o",
+// Initialize the Gemini model with API key
+const model = new ChatGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_API_KEY,
+  modelName: "gemini-pro", // Using Gemini Pro model
+  maxOutputTokens: 2048,
 });
+
+// Initialize Google AI for embeddings
+const googleAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 export const indexName = "papafam";
 
@@ -107,6 +114,94 @@ async function namespaceExists(
   return namespaces?.[namespace] !== undefined;
 }
 
+// Custom embeddings class for Gemini
+class GeminiEmbeddings {
+  private model: GenerativeModel;
+  private fallbackEmbeddingSize: number = 768; // Standard embedding size
+
+  constructor() {
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    this.model = genAI.getGenerativeModel({ model: "embedding-001" });
+  }
+
+  private sanitizeText(text: string): string {
+    return text
+      .replace(/[^\w\s.,?!-]/g, "") // Remove special characters except basic punctuation
+      .replace(/\s+/g, " ") // Normalize whitespace
+      .trim()
+      .slice(0, 2000); // Limit length to avoid token limits
+  }
+
+  private async generateSafeEmbedding(text: string): Promise<number[]> {
+    try {
+      const sanitizedText = this.sanitizeText(text);
+
+      if (!sanitizedText) {
+        console.warn("Empty text after sanitization, returning zero embedding");
+        return new Array(this.fallbackEmbeddingSize).fill(0);
+      }
+
+      const result = await this.model.embedContent(sanitizedText);
+      const embedding = await result.embedding;
+      return Array.from(embedding.values);
+    } catch (error) {
+      if ((error as Error).message?.includes("SAFETY")) {
+        console.warn(
+          "Safety block encountered, attempting fallback processing"
+        );
+        // Try again with more aggressive sanitization
+        const fallbackText = this.sanitizeText(text)
+          .replace(/[.,?!-]/g, " ") // Remove all punctuation
+          .replace(/\d+/g, "n") // Replace numbers with 'n'
+          .toLowerCase();
+
+        try {
+          const fallbackResult = await this.model.embedContent(fallbackText);
+          const fallbackEmbedding = await fallbackResult.embedding;
+          return Array.from(fallbackEmbedding.values);
+        } catch (fallbackError) {
+          console.error("Fallback embedding failed:", fallbackError);
+          // Return zero embedding as last resort
+          return new Array(this.fallbackEmbeddingSize).fill(0);
+        }
+      }
+
+      console.error("Error generating embedding:", error);
+      return new Array(this.fallbackEmbeddingSize).fill(0);
+    }
+  }
+
+  async embedQuery(text: string): Promise<number[]> {
+    return this.generateSafeEmbedding(text);
+  }
+
+  async embedDocuments(texts: string[]): Promise<number[][]> {
+    try {
+      // Process texts in smaller batches to avoid rate limits
+      const batchSize = 5;
+      const embeddings: number[][] = [];
+
+      for (let i = 0; i < texts.length; i += batchSize) {
+        const batch = texts.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map((text) => this.generateSafeEmbedding(text))
+        );
+        embeddings.push(...batchResults);
+
+        // Add a small delay between batches to avoid rate limits
+        if (i + batchSize < texts.length) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+
+      return embeddings;
+    } catch (error) {
+      console.error("Error in batch embedding:", error);
+      throw error;
+    }
+  }
+}
+
 export async function generateEmbeddingsInPineconeVectorStore(docId: string) {
   const { userId } = await auth();
 
@@ -118,7 +213,7 @@ export async function generateEmbeddingsInPineconeVectorStore(docId: string) {
 
   // Generate embeddings (numerical representations) for the split documents
   console.log("--- Generating embeddings... ---");
-  const embeddings = new OpenAIEmbeddings();
+  const embeddings = new GeminiEmbeddings();
 
   const index = await pineconeClient.index(indexName);
   const namespaceAlreadyExists = await namespaceExists(index, docId);
@@ -198,9 +293,7 @@ const generateLangchainCompletion = async (docId: string, question: string) => {
       "system",
       "Answer the user's questions based on the below context:\n\n{context}",
     ],
-
-    ...chatHistory, // Insert the actual chat history here
-
+    ...chatHistory,
     ["user", "{input}"],
   ]);
 
