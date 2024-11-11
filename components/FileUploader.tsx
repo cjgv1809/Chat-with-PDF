@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import {
   CheckCircleIcon,
@@ -9,19 +9,14 @@ import {
   RocketIcon,
   SaveIcon,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import useUpload, { StatusText } from "@/hooks/useUpload";
+import { useRouter } from "next/navigation";
 import useSubscription from "@/hooks/useSubscription";
 import { useToast } from "@/hooks/use-toast";
 
 function FileUploader() {
-  const { progress, status, fileId, handleUpload } = useUpload() as {
-    progress: number | null;
-    status: StatusText;
-    fileId: string | null;
-    handleUpload: (file: File) => Promise<void>;
-  };
-  const { isOverFileLimit, filesLoading } = useSubscription();
+  const { progress, status, fileId, handleUpload } = useUpload();
+  const { isOverFileLimit, loading } = useSubscription();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -33,9 +28,10 @@ function FileUploader() {
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
+
       const file = acceptedFiles[0];
       if (file) {
-        if (!isOverFileLimit && !filesLoading) {
+        if (!isOverFileLimit && !loading) {
           await handleUpload(file);
         } else {
           toast({
@@ -47,7 +43,7 @@ function FileUploader() {
         }
       }
     },
-    [handleUpload, isOverFileLimit, filesLoading, toast]
+    [handleUpload, isOverFileLimit, loading, toast]
   );
 
   const statusIcons: {
@@ -79,27 +75,32 @@ function FileUploader() {
   return (
     <div className="flex flex-col gap-4 items-center max-w-7xl mx-auto">
       {uploadInProgress && (
-        <div className="flex flex-col justify-center items-center gap-5">
+        <div className="mt-32 flex flex-col justify-center items-center gap-5">
           <div
             className={`radial-progress bg-indigo-300 text-white border-indigo-600 border-4 ${
               progress === 100 && "hidden"
             }`}
             role="progressbar"
-            style={
-              {
-                "--value": progress,
-                "--size": "12rem",
-                "--thickness": "1.3rem",
-              } as React.CSSProperties
-            }
+            style={{
+              "--value": progress,
+              "--size": "12rem",
+              "--thickness": "1.3rem",
+            } as React.CSSProperties}
           >
             {progress} %
           </div>
 
           {/* Render Status Icon */}
-          {statusIcons[status]}
+          {status && statusIcons[status as StatusText]
+            ? statusIcons[status as StatusText]
+            : status && (
+                <p className="text-indigo-600 animate-pulse">
+                  {status.toString()}
+                </p>
+              )}
 
-          <p className="text-indigo-600 animate-pulse">{status.toString()}</p>
+          {/* Render Status Text */}
+          <p className="text-indigo-600 animate-pulse">{status?.toString()}</p>
         </div>
       )}
 

@@ -11,23 +11,43 @@ export async function deleteDocument(docId: string) {
 
   const { userId } = await auth();
 
-  // Delete the document from the database
-  await adminDb
-    .collection("users")
-    .doc(userId!)
-    .collection("files")
-    .doc(docId)
-    .delete();
+  try {
+    // Delete the document from the database
+    await adminDb
+      .collection("users")
+      .doc(userId!)
+      .collection("files")
+      .doc(docId)
+      .delete();
 
-  // Delete from firebase storage
-  await adminStorage
-    .bucket(process.env.FIREBASE_STORAGE_BUCKET) // update with env variable
-    .file(`users/${userId}/files/${docId}`)
-    .delete();
+    // Delete from firebase storage
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+    const filePath = `users/${userId}/files/${docId}`;
+    console.log(`Deleting file from bucket: ${bucketName}, path: ${filePath}`);
 
-  // Delete all embeddings associated with the document
-  const index = await pineconeClient.index(indexName);
-  await index.namespace(docId).deleteAll();
+    await adminStorage.bucket(bucketName).file(filePath).delete();
+
+    console.log(`File deleted successfully: ${filePath}`);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`Error deleting file: ${error.message}`);
+    } else {
+      console.error(`Error deleting file: ${error}`);
+    }
+  }
+
+  try {
+    // Delete all embeddings associated with the document
+    const index = await pineconeClient.index(indexName);
+    await index.namespace(docId).deleteAll();
+    console.log(`Embeddings deleted successfully for document: ${docId}`);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`Error deleting embeddings: ${error.message}`);
+    } else {
+      console.error(`Error deleting embeddings: ${error}`);
+    }
+  }
 
   // Revalidate the dashboard page to ensure the documents are up to date
   revalidatePath("/dashboard");
