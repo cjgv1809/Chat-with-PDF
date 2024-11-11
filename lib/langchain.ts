@@ -152,22 +152,20 @@ class GeminiEmbeddings {
         // Try again with more aggressive sanitization
         const fallbackText = this.sanitizeText(text)
           .replace(/[.,?!-]/g, " ") // Remove all punctuation
-          .replace(/\d+/g, "n") // Replace numbers with 'n'
-          .toLowerCase();
+          .replace(/\d+/g, "n"); // Replace numbers with 'n'
 
         try {
           const fallbackResult = await this.model.embedContent(fallbackText);
           const fallbackEmbedding = await fallbackResult.embedding;
           return Array.from(fallbackEmbedding.values);
         } catch (fallbackError) {
-          console.error("Fallback embedding failed:", fallbackError);
-          // Return zero embedding as last resort
-          return new Array(this.fallbackEmbeddingSize).fill(0);
+          console.error("Fallback processing failed", fallbackError);
+          throw fallbackError;
         }
+      } else {
+        console.error("Embedding failed", error);
+        throw error;
       }
-
-      console.error("Error generating embedding:", error);
-      return new Array(this.fallbackEmbeddingSize).fill(0);
     }
   }
 

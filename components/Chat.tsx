@@ -159,6 +159,7 @@ function Chat({ id }: { id: string }) {
           placeholder="Ask a Question..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          className="!placeholder-white text-white"
         />
 
         <Button type="submit" disabled={!input || isPending}>
