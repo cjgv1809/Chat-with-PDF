@@ -14,6 +14,9 @@ function UpgradeButton() {
   const router = useRouter();
 
   const handleAccount = () => {
+    // do nothing if hasActiveMembership is true
+    if (hasActiveMembership) return;
+
     startTransition(async () => {
       const stripePortalUrl = await createStripePortal();
       router.push(stripePortalUrl);
