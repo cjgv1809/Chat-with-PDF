@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
-// import { useRouter } from "next/navigation";
-import { v4 as uuidv4 } from "uuid";
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { db, storage } from "@/firebase";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { generateEmbeddings } from "@/actions/generateEmbeddings";
+import { db, storage } from "@/firebase";
+import { useUser } from "@clerk/nextjs";
+import { doc, setDoc } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
+import { v4 as uuidv4 } from "uuid";
 
 export enum StatusText {
   UPLOADING = "Uploading file...",
@@ -23,32 +22,32 @@ function useUpload() {
   const [fileId, setFileId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const { user } = useUser();
-  // const router = useRouter();
 
   const handleUpload = async (file: File) => {
-    if (!user || !file) return;
+    if (!file || !user) return;
 
     const fileIdToUploadTo = uuidv4();
-
-    const storageRef = ref(storage, `users/${user.id}/${fileIdToUploadTo}`);
+    const storageRef = ref(
+      storage,
+      `users/${user.id}/files/${fileIdToUploadTo}`
+    );
 
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on(
       "state_changed",
       (snapshot) => {
-        const progress = Math.round(
+        const percent = Math.round(
           (snapshot.bytesTransferred / snapshot.totalBytes) * 100
         );
         setStatus(StatusText.UPLOADING);
-        setProgress(progress);
+        setProgress(percent);
       },
       (error) => {
         console.error("Error uploading file", error);
       },
       async () => {
         setStatus(StatusText.UPLOADED);
-        setProgress(null);
 
         const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
@@ -59,7 +58,7 @@ function useUpload() {
           type: file.type,
           downloadUrl: downloadUrl,
           ref: uploadTask.snapshot.ref.fullPath,
-          createdAt: serverTimestamp(),
+          createdAt: new Date(),
         });
 
         setStatus(StatusText.GENERATING);

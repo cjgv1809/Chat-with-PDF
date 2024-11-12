@@ -6,7 +6,7 @@ import { collection, doc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { useCollection, useDocument } from "react-firebase-hooks/firestore";
 
-// number of docs the user is allowed to have
+// Number of docs the user is allowed to have
 const PRO_LIMIT = 20;
 const FREE_LIMIT = 2;
 
@@ -31,7 +31,7 @@ function useSubscription() {
   );
 
   // Listen to the users files collection
-  const [filesSnapshot, filesLoading, filesError] = useCollection(
+  const [filesSnapshot, filesLoading] = useCollection(
     user ? collection(db, "users", user.id, "files") : null
   );
 
@@ -52,33 +52,20 @@ function useSubscription() {
   }, [snapshot]);
 
   useEffect(() => {
-    if (!filesSnapshot) return;
+    if (!filesSnapshot || hasActiveMembership === null) return;
 
-    try {
-      const files = filesSnapshot.docs;
-      const usersLimit = hasActiveMembership ? PRO_LIMIT : FREE_LIMIT;
+    const files = filesSnapshot.docs;
+    const usersLimit = hasActiveMembership ? PRO_LIMIT : FREE_LIMIT;
 
-      console.log(
-        "Checking if user is over file limit:",
-        `Files: ${files.length}`,
-        `Limit: ${usersLimit}`
-      );
-
-      setIsOverFileLimit(files.length >= usersLimit);
-    } catch (err) {
-      console.error("Error processing files:", err);
-      setIsOverFileLimit(false);
-    }
+    console.log(
+      "Checking if user is over file limit",
+      files.length,
+      usersLimit
+    );
+    setIsOverFileLimit(files.length >= usersLimit);
   }, [filesSnapshot, hasActiveMembership]);
 
-  return {
-    hasActiveMembership,
-    isOverFileLimit,
-    loading: loading || filesLoading,
-    error: error || filesError,
-    filesCount: filesSnapshot?.docs.length || 0,
-    userLimit: hasActiveMembership ? PRO_LIMIT : FREE_LIMIT,
-  };
+  return { hasActiveMembership, loading, error, isOverFileLimit, filesLoading };
 }
 
 export default useSubscription;
