@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 
 function FileUploader() {
   const { progress, status, fileId, handleUpload } = useUpload();
-  const { isOverFileLimit, loading } = useSubscription();
+  const { isOverFileLimit, filesLoading } = useSubscription();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -28,10 +28,9 @@ function FileUploader() {
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
-
       const file = acceptedFiles[0];
       if (file) {
-        if (!isOverFileLimit && !loading) {
+        if (!isOverFileLimit && !filesLoading) {
           await handleUpload(file);
         } else {
           toast({
@@ -43,7 +42,7 @@ function FileUploader() {
         }
       }
     },
-    [handleUpload, isOverFileLimit, loading, toast]
+    [handleUpload, isOverFileLimit, filesLoading, toast]
   );
 
   const statusIcons: {
@@ -81,38 +80,34 @@ function FileUploader() {
               progress === 100 && "hidden"
             }`}
             role="progressbar"
-            style={{
-              "--value": progress,
-              "--size": "12rem",
-              "--thickness": "1.3rem",
-            } as React.CSSProperties}
+            style={
+              {
+                "--value": progress,
+                "--size": "12rem",
+                "--thickness": "1.3rem",
+              } as React.CSSProperties
+            }
           >
             {progress} %
           </div>
 
-          {/* Render Status Icon */}
-          {status && statusIcons[status as StatusText]
-            ? statusIcons[status as StatusText]
-            : status && (
-                <p className="text-indigo-600 animate-pulse">
-                  {status.toString()}
-                </p>
-              )}
+          {/* Render  Status Icon */}
+          {statusIcons[status as StatusText]}
 
-          {/* Render Status Text */}
-          <p className="text-indigo-600 animate-pulse">{status?.toString()}</p>
+          <p className="text-indigo-600 animate-pulse">
+                  {status?.toString()}
+          </p>
         </div>
       )}
 
       {!uploadInProgress && (
         <div
           {...getRootProps()}
-          className={`p-10 border-2 border-dashed mt-10 w-[90%]  border-indigo-600 text-indigo-600 rounded-lg h-96 flex items-center justify-center ${
+          className={`p-10 border-2 border-dashed mt-10 w-[90%] border-indigo-600 text-indigo-600 rounded-lg h-96 flex items-center justify-center ${
             isFocused || isDragAccept ? "bg-indigo-300" : "bg-indigo-100"
           }`}
         >
           <input {...getInputProps()} />
-
           <div className="flex flex-col items-center justify-center">
             {isDragActive ? (
               <>
